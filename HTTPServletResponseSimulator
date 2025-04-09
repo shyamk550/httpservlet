@@ -1,0 +1,89 @@
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.*;
+import java.util.*;
+
+public class HTTPServletResponseSimulator implements HttpServletResponse {
+
+    private final StringWriter stringWriter = new StringWriter();
+    private final PrintWriter writer = new PrintWriter(stringWriter);
+    private int status = HttpServletResponse.SC_OK;
+    private final Map<String, String> headers = new HashMap<>();
+
+    @Override
+    public PrintWriter getWriter() {
+        return writer;
+    }
+
+    public String getOutput() {
+        writer.flush();
+        return stringWriter.toString();
+    }
+
+    @Override
+    public void setStatus(int sc) {
+        this.status = sc;
+    }
+
+    @Override
+    public int getStatus() {
+        return status;
+    }
+
+    @Override
+    public void setHeader(String name, String value) {
+        headers.put(name, value);
+    }
+
+    public String getHeader(String name) {
+        return headers.get(name);
+    }
+
+    public Collection<String> getHeaderNames() {
+        return headers.keySet();
+    }
+
+    // --- Stubbed / Default Behavior Methods ---
+    @Override public void flushBuffer() throws IOException {}
+    @Override public int getBufferSize() { return 0; }
+    @Override public String getCharacterEncoding() { return "UTF-8"; }
+    @Override public String getContentType() { return "text/html"; }
+    @Override public Locale getLocale() { return Locale.getDefault(); }
+    @Override public ServletOutputStream getOutputStream() { 
+        return new ServletOutputStream() {
+            @Override public boolean isReady() { return true; }
+            @Override public void setWriteListener(WriteListener listener) {}
+            @Override public void write(int b) throws IOException {
+                stringWriter.write(b);
+            }
+        };
+    }
+    @Override public boolean isCommitted() { return false; }
+    @Override public void reset() {}
+    @Override public void resetBuffer() {}
+    @Override public void setBufferSize(int size) {}
+    @Override public void setCharacterEncoding(String charset) {}
+    @Override public void setContentLength(int len) {}
+    @Override public void setContentLengthLong(long len) {}
+    @Override public void setContentType(String type) {}
+    @Override public void setLocale(Locale loc) {}
+
+    // --- Unimplemented ---
+    @Override public void addCookie(Cookie cookie) {}
+    @Override public void addDateHeader(String name, long date) {}
+    @Override public void addHeader(String name, String value) {}
+    @Override public void addIntHeader(String name, int value) {}
+    @Override public boolean containsHeader(String name) { return headers.containsKey(name); }
+    @Override public String encodeRedirectURL(String url) { return url; }
+    @Override public String encodeRedirectUrl(String url) { return url; }
+    @Override public String encodeURL(String url) { return url; }
+    @Override public String encodeUrl(String url) { return url; }
+    @Override public void sendError(int sc) throws IOException { setStatus(sc); }
+    @Override public void sendError(int sc, String msg) throws IOException { setStatus(sc); }
+    @Override public void sendRedirect(String location) throws IOException { setStatus(HttpServletResponse.SC_FOUND); setHeader("Location", location); }
+    @Override public void setDateHeader(String name, long date) {}
+    @Override public void setIntHeader(String name, int value) {}
+}

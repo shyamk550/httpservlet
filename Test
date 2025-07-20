@@ -1,0 +1,42 @@
+public static String getRiskChartData(Map<String, Object> chartData) {
+    List<Map<String, Object>> riskSeriesData = (List<Map<String, Object>>) chartData.get("riskSeries");
+
+    // Group points by label (account or benchmark)
+    Map<String, List<double[]>> groupedPoints = new LinkedHashMap<>();
+
+    for (Map<String, Object> point : riskSeriesData) {
+        Double stdDev = (Double) point.get("standardDeviation");
+        Double returnVal = (Double) point.get("return");
+        String label = (String) point.get("name");
+
+        if (stdDev != null && returnVal != null) {
+            groupedPoints.putIfAbsent(label, new ArrayList<>());
+            groupedPoints.get(label).add(new double[] { stdDev, returnVal });
+        }
+    }
+
+    // Build series JSON: one object per label
+    StringBuilder seriesJson = new StringBuilder();
+    seriesJson.append("[");
+
+    int i = 0;
+    for (Map.Entry<String, List<double[]>> entry : groupedPoints.entrySet()) {
+        if (i++ > 0) seriesJson.append(",");
+
+        seriesJson.append("{");
+        seriesJson.append("\"name\":\"").append(entry.getKey()).append("\",");
+        seriesJson.append("\"data\":[");
+
+        List<double[]> points = entry.getValue();
+        for (int j = 0; j < points.size(); j++) {
+            if (j > 0) seriesJson.append(",");
+            double[] xy = points.get(j);
+            seriesJson.append("[").append(xy[0]).append(", ").append(xy[1]).append("]");
+        }
+
+        seriesJson.append("]}");
+    }
+
+    seriesJson.append("]");
+    return seriesJson.toString();
+}

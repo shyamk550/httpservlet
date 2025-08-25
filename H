@@ -1,0 +1,61 @@
+<#-- Plain CSV, no auto-escaping -->
+<#escape x as x>
+<#setting locale="en_US">
+
+<#-- Quote cell if needed -->
+<#macro wrap value>
+  <#local s = (value!'')?string>
+  <#if s?contains(",") || s?contains('"') || s?contains('\n')>
+    "${s?replace('"','""')}"
+  <#else>
+    ${s}
+  </#if>
+</#macro>
+
+<#-- Write ONE CSV row (adds CRLF); DO NOT add your own newline after calling -->
+<#macro row values>
+  <#list values as v>
+    <@wrap value=v/><#if v_has_next>,</#if>
+  </#list>${"\r\n"}<#t>
+</#macro>
+
+<#-- =================== RETURNS (Cumulative) =================== -->
+<@writeBlock
+  title="Cumulative"
+  accountRows=accountMetrics!
+  benchmarkRows=benchmarkMetrics!
+  isAgg=isAggregated!
+  aggRows=aggregatedData!
+>
+
+<@row values=[title]/>
+<@row values=[
+  "Account#", "MTD", "QTD", "YTD", "1-Year", "3-Year", "5-Year",
+  "10-Year", "Since Inception", "Inception Date"
+]/>
+
+<#-- aggregated rows -->
+<#list aggRows![] as metric>
+  <#-- inception date: either "--" or "dd-MMM-yyyy" -->
+  <#assign incRaw = metric.inceptionDate!"" />
+  <#assign incOut =
+      (incRaw?has_content && incRaw != "--" && incRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$"))
+      ? (incRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd")
+      : "" />
+
+  <@row values=[
+    (metric.accountName?has_content) ? metric.accountName : (metric.accountNumber!''),
+    metric.oneMonth!'',          <!-- MTD -->
+    metric.threeMonth!'',        <!-- QTD (until true QTD exists) -->
+    metric.ytd!'',
+    metric.oneYear!'',
+    metric.threeYear!'',
+    metric.fiveYear!'',
+    metric.tenYear!'',
+    metric.sinceInception!'',
+    incOut
+  ]/>
+</#list>
+
+</@writeBlock>
+</#escape>

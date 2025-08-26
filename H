@@ -14,51 +14,99 @@
 
 <#-- Build ONE CSV row string (values joined by commas, CRLF at end) -->
 <#function row values>
-  <#return values?map(x -> csv(x))?join(",") + "\r\n">
+  <#local parts = []>
+  <#list values as x>
+    <#local parts = parts + [ csv(x) ]>
+  </#list>
+  <#return parts?join(",") + "\r\n">
 </#function>
 
-<#-- Keep the same call shape your Java code expects -->
-<#macro writeBlock title accountRows benchmarkRows isAgg aggRows>
-  <#nested>
-</#macro>
+<#-- Render a Returns section (Cumulative or Annualized) -->
+<#macro returnsSection sectionTitle subLabel rows benchRows>
+  ${ row([ sectionTitle ]) }<#t>
 
-<@writeBlock
-  title="Cumulative"
-  accountRows=accountMetrics!
-  benchmarkRows=benchmarkMetrics!
-  isAgg=isAggregated!
-  aggRows=aggregatedData!
->
-  <#-- copy macro param into a normal var so we can use it in expressions -->
-  <#assign blockTitle = title>
+  ${ row([ "Section", "Time Period", "Rate of Return" ]) }<#t>
+  ${ row([ "Filter", (filterType!'')?string, (rateOfReturn!'')?string ]) }<#t>
 
-  ${ row([ blockTitle ]) }<#t>
   ${ row([
-        "Account#", "MTD", "QTD", "YTD", "1-Year",
-        "3-Year", "5-Year", "10-Year",
-        "Since Inception", "Inception Date"
-     ]) }<#t>
+    "Section","Sub-Section","Account#","MTD","QTD","YTD",
+    "1-Year","3-Year","5-Year","10-Year","Since Inception","Inception Date"
+  ]) }<#t>
 
-  <#-- Data rows -->
-  <#list aggRows![] as metric>
-    <#-- inceptionDate is either "--" or "dd-MMM-yyyy" string -->
+  <#-- Account rows -->
+  <#list rows![] as metric>
+    <#-- inceptionDate normalize -->
     <#assign incRaw = metric.inceptionDate!"" />
-    <#assign incOut =
-        (incRaw?has_content && incRaw != "--" && incRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$"))
-          ? (incRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd")
-          : "" />
+    <#if incRaw?has_content && incRaw != "--" && incRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$")>
+      <#assign incOut = (incRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd") />
+    <#else>
+      <#assign incOut = "" />
+    </#if>
 
     ${ row([
-        (metric.accountName?has_content) ? metric.accountName : (metric.accountNumber!''),
-        metric.oneMonth!'',          -- MTD
-        metric.threeMonth!'',        -- QTD (placeholder until true QTD exists)
-        metric.ytd!'',
-        metric.oneYear!'',
-        metric.threeYear!'',
-        metric.fiveYear!'',
-        metric.tenYear!'',
-        metric.sinceInception!'',
-        incOut
-      ]) }<#t>
+      "Returns",
+      subLabel,
+      (metric.accountName?has_content) ? metric.accountName : (metric.accountNumber!''),
+      metric.oneMonth!'',      /* MTD */
+      metric.threeMonth!'',    /* QTD (placeholder until real QTD exists) */
+      metric.ytd!'',
+      metric.oneYear!'',
+      metric.threeYear!'',
+      metric.fiveYear!'',
+      metric.tenYear!'',
+      metric.sinceInception!'',
+      incOut
+    ]) }<#t>
   </#list>
-</@writeBlock>
+
+  <#-- Benchmark rows (optional) -->
+  <#if benchRows?has_content>
+    ${ row([ "Benchmarks" ]) }<#t>
+    ${ row([
+      "Section","Sub-Section","Benchmark Name","MTD","QTD","YTD",
+      "1-Year","3-Year","5-Year","10-Year","Since Inception","Inception Date"
+    ]) }<#t>
+
+    <#list benchRows as b>
+      <#assign bincRaw = b.inceptionDate!"" />
+      <#if bincRaw?has_content && bincRaw != "--" && bincRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$")>
+        <#assign bincOut = (bincRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd") />
+      <#else>
+        <#assign bincOut = "" />
+      </#if>
+
+      ${ row([
+        "Returns",
+        subLabel,
+        b.benchmarkName!'',
+        b.oneMonth!'',
+        b.threeMonth!'',
+        b.ytd!'',
+        b.oneYear!'',
+        b.threeYear!'',
+        b.fiveYear!'',
+        b.tenYear!'',
+        b.sinceInception!'',
+        bincOut
+      ]) }<#t>
+    </#list>
+  </#if>
+</#macro>
+
+<#-- ================= SECTIONS ================= -->
+
+<#-- Returns - Cumulative -->
+<@returnsSection
+  sectionTitle = "Returns - Cumulative"
+  subLabel     = "Cumulative"
+  rows         = accountMetrics![]
+  benchRows    = benchmarkMetrics![]
+/>
+
+<#-- Returns - Annualized -->
+<@returnsSection
+  sectionTitle = "Returns - Annualized"
+  subLabel     = "Annualized"
+  rows         = accountAnnualizedMetrics![]
+  benchRows    = benchmarkAnnualizedMetrics![]
+/>

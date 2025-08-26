@@ -1,25 +1,27 @@
-<#-- Plain CSV, no auto-escaping -->
-<#escape x as x>
+<#-- export-csv.ftl -->
+
 <#setting locale="en_US">
 
-<#-- Quote cell if needed -->
-<#macro wrap value>
-  <#local s = (value!'')?string>
+<#-- Quote a value for CSV and RETURN it as a string -->
+<#function csv v>
+  <#local s = (v!'')?string>
   <#if s?contains(",") || s?contains('"') || s?contains('\n')>
-    "${s?replace('"','""')}"
+    <#return '"' + s?replace('"','""') + '"' >
   <#else>
-    ${s}
+    <#return s>
   </#if>
+</#function>
+
+<#-- Build ONE CSV row string (values joined by commas, CRLF at end) -->
+<#function row values>
+  <#return values?map(x -> csv(x))?join(",") + "\r\n">
+</#function>
+
+<#-- Keep the same call shape your Java code expects -->
+<#macro writeBlock title accountRows benchmarkRows isAgg aggRows>
+  <#nested>
 </#macro>
 
-<#-- Write ONE CSV row (adds CRLF); DO NOT add your own newline after calling -->
-<#macro row values>
-  <#list values as v>
-    <@wrap value=v/><#if v_has_next>,</#if>
-  </#list>${"\r\n"}<#t>
-</#macro>
-
-<#-- =================== RETURNS (Cumulative) =================== -->
 <@writeBlock
   title="Cumulative"
   accountRows=accountMetrics!
@@ -27,35 +29,36 @@
   isAgg=isAggregated!
   aggRows=aggregatedData!
 >
+  <#-- copy macro param into a normal var so we can use it in expressions -->
+  <#assign blockTitle = title>
 
-<@row values=[title]/>
-<@row values=[
-  "Account#", "MTD", "QTD", "YTD", "1-Year", "3-Year", "5-Year",
-  "10-Year", "Since Inception", "Inception Date"
-]/>
+  ${ row([ blockTitle ]) }<#t>
+  ${ row([
+        "Account#", "MTD", "QTD", "YTD", "1-Year",
+        "3-Year", "5-Year", "10-Year",
+        "Since Inception", "Inception Date"
+     ]) }<#t>
 
-<#-- aggregated rows -->
-<#list aggRows![] as metric>
-  <#-- inception date: either "--" or "dd-MMM-yyyy" -->
-  <#assign incRaw = metric.inceptionDate!"" />
-  <#assign incOut =
-      (incRaw?has_content && incRaw != "--" && incRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$"))
-      ? (incRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd")
-      : "" />
+  <#-- Data rows -->
+  <#list aggRows![] as metric>
+    <#-- inceptionDate is either "--" or "dd-MMM-yyyy" string -->
+    <#assign incRaw = metric.inceptionDate!"" />
+    <#assign incOut =
+        (incRaw?has_content && incRaw != "--" && incRaw?matches("^[0-3]?\\d-[A-Za-z]{3}-\\d{4}$"))
+          ? (incRaw?date("dd-MMM-yyyy"))?string("yyyy-MM-dd")
+          : "" />
 
-  <@row values=[
-    (metric.accountName?has_content) ? metric.accountName : (metric.accountNumber!''),
-    metric.oneMonth!'',          <!-- MTD -->
-    metric.threeMonth!'',        <!-- QTD (until true QTD exists) -->
-    metric.ytd!'',
-    metric.oneYear!'',
-    metric.threeYear!'',
-    metric.fiveYear!'',
-    metric.tenYear!'',
-    metric.sinceInception!'',
-    incOut
-  ]/>
-</#list>
-
+    ${ row([
+        (metric.accountName?has_content) ? metric.accountName : (metric.accountNumber!''),
+        metric.oneMonth!'',          -- MTD
+        metric.threeMonth!'',        -- QTD (placeholder until true QTD exists)
+        metric.ytd!'',
+        metric.oneYear!'',
+        metric.threeYear!'',
+        metric.fiveYear!'',
+        metric.tenYear!'',
+        metric.sinceInception!'',
+        incOut
+      ]) }<#t>
+  </#list>
 </@writeBlock>
-</#escape>

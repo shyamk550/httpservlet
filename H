@@ -1,47 +1,54 @@
-<#-- =====================  ACCOUNT ACTIVITY  ===================== -->
-<#if accountActivity?? && accountActivity?size gt 0>
+<#-- =====================  RISK  ===================== -->
+<#if includeRiskTemplate?? && includeRiskTemplate>
 
-  <#list accountActivity as block>
-    <#-- Meta is the first map at index 0 -->
-    <#assign meta = (block[0])!{}>
+  <#-- Small helpers -->
+  <#function dec s>
+    <#-- decode common HTML entity so S&amp;P -> S&P -->
+    <#return (s!'')?string?replace("&amp;","&")>
+  </#function>
 
-    <#-- Figure out the sub label (Monthly / Quarterly / Yearly) from meta -->
-    <#assign subLabel = "Monthly">
-    <#if meta.accountActivityFilterType??>
-      <#assign filt = meta.accountActivityFilterType?string>
-      <#if filt?lower_case?contains("quarter")>
-        <#assign subLabel = "Quarterly">
-      <#elseif filt?lower_case?contains("year")>
-        <#assign subLabel = "Yearly">
-      </#if>
+  <#function suf period>
+    <#-- Convert "3-Year"/"5-Year"/"10-Year" to "3Yr"/"5Yr"/"10Yr" for key suffixes -->
+    <#if period == "3-Year"><#return "3Yr">
+    <#elseif period == "5-Year"><#return "5Yr">
+    <#else><#return "10Yr">
     </#if>
+  </#function>
+
+  <#-- Pull the account metrics (first/only entry) and all benchmarks -->
+  <#assign acc = (riskAccountMetrics![])?first!{}/>
+  <#assign benches = riskBenchmarkMetrics![]/>
+
+  <#-- Loop periods like the PDF/CSV mockup -->
+  <#list ["3-Year","5-Year","10-Year"] as period>
+    <#assign s = suf(period)>
+
+    <@printRow values=["Section","Sub-Section","Account",
+                       "Standard Deviation","Sharpe Ratio","Alpha","Beta"] />
+
+    <@printRow values=["Risk", period, "Accounts (1)"] />
 
     <@printRow values=[
-      "Section","Sub-Section","Account","Timeframe",
-      "Beginning Balance","Market Change Minus Fees",
-      "Contribution","Dividends","Interest","Withdrawals","Fees","Ending Balance"
+      "Risk", period, acc.accountNumber!'',
+      acc["standardDeviation" + s]!'',
+      acc["sharpeRatio"       + s]!'',
+      acc["alpha"             + s]!'',
+      acc["beta"              + s]!''
     ] />
 
-    <#-- Data rows start at index 1 -->
-    <#if block?size gt 1>
-      <#list block[1..] as row>
-        <@printRow values=[
-          "Account Activity",
-          subLabel,
-          (row.accountNumber!meta.accountNumber)!"",     // account #
-          row.accountDisplay!'',                         // timeframe label (e.g. "Aug-24")
-          row.beginningBalance!'',
-          (row.marketChange!row["marketChangeMinusFees"]!)!'',  // support either key
-          row.contribution!'',
-          row.dividends!'',
-          row.interest!'',
-          row.withdrawals!'',
-          (row.managementFees!row.fees)!'',
-          row.endingBalance!''
-        ] />
-      </#list>
-    </#if>
+    <@printRow values=["Risk", period, "Benchmarks (" + (benches?size)!0 + ")"] />
+
+    <#list benches as bm>
+      <#-- benchmark display name can live under different keys -->
+      <#assign bmName = dec(bm.benchmarkName!bm.accountNumber!bm.name!"")>
+      <@printRow values=[
+        "Risk", period, bmName,
+        bm["standardDeviation" + s]!'',
+        bm["sharpeRatio"       + s]!'',
+        bm["alpha"             + s]!'',
+        bm["beta"              + s]!''
+      ] />
+    </#list>
 
   </#list>
-
 </#if>

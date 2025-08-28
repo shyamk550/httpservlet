@@ -1,47 +1,47 @@
-<#-- =====================  HISTORICAL RETURNS  ===================== -->
-<#if includeHistoricalReturnsTemplate?? && includeHistoricalReturnsTemplate>
+<#-- =====================  ACCOUNT ACTIVITY  ===================== -->
+<#if accountActivity?? && accountActivity?size gt 0>
 
-  <#-- Column labels for benchmarks (fallbacks if names not present) -->
-  <#assign b0Name = "Benchmark 0">
-  <#if benchmarkNames?? && (benchmarkNames?size >= 1)>
-    <#assign b0Name = benchmarkNames[0]!b0Name>
-  </#if>
-  <#assign b1Name = "Benchmark 1">
-  <#if benchmarkNames?? && (benchmarkNames?size >= 2)>
-    <#assign b1Name = benchmarkNames[1]!b1Name>
-  </#if>
+  <#list accountActivity as block>
+    <#-- Meta is the first map at index 0 -->
+    <#assign meta = (block[0])!{}>
 
-  <#-- Loop over each historical block (typically Monthly, Quarterly, Yearly) -->
-  <#list historicalReturnsData![] as block>
-
-    <#-- Work out the sub-section label. Prefer block.periodType if you have it.
-         Otherwise map index 0/1/2 => Monthly/Quarterly/Yearly. -->
+    <#-- Figure out the sub label (Monthly / Quarterly / Yearly) from meta -->
     <#assign subLabel = "Monthly">
-    <#if block.periodType?? && block.periodType?has_content>
-      <#assign subLabel = block.periodType>
-    <#elseif block_index == 1>
-      <#assign subLabel = "Quarterly">
-    <#elseif block_index == 2>
-      <#assign subLabel = "Yearly">
+    <#if meta.accountActivityFilterType??>
+      <#assign filt = meta.accountActivityFilterType?string>
+      <#if filt?lower_case?contains("quarter")>
+        <#assign subLabel = "Quarterly">
+      <#elseif filt?lower_case?contains("year")>
+        <#assign subLabel = "Yearly">
+      </#if>
     </#if>
 
-    <@printRow values=["Section","Sub-Section","Account","Timeframe",
-                       "Rate of Return (Net of Fees)","Rate of Return (Gross of Fees)",
-                       b0Name, b1Name] />
+    <@printRow values=[
+      "Section","Sub-Section","Account","Timeframe",
+      "Beginning Balance","Market Change Minus Fees",
+      "Contribution","Dividends","Interest","Withdrawals","Fees","Ending Balance"
+    ] />
 
-    <#-- Each block has rowData = list of rows -->
-    <#list block.rowData![] as row>
-      <@printRow values=[
-        "Historical Returns",
-        subLabel,
-        row.accountNumber!'',
-        row.effectiveDate!'',
-        row.netOfFees!'',
-        row.grossOfFees!'',
-        row.benchmark0!'',
-        row.benchmark1!''
-      ] />
-    </#list>
+    <#-- Data rows start at index 1 -->
+    <#if block?size gt 1>
+      <#list block[1..] as row>
+        <@printRow values=[
+          "Account Activity",
+          subLabel,
+          (row.accountNumber!meta.accountNumber)!"",     // account #
+          row.accountDisplay!'',                         // timeframe label (e.g. "Aug-24")
+          row.beginningBalance!'',
+          (row.marketChange!row["marketChangeMinusFees"]!)!'',  // support either key
+          row.contribution!'',
+          row.dividends!'',
+          row.interest!'',
+          row.withdrawals!'',
+          (row.managementFees!row.fees)!'',
+          row.endingBalance!''
+        ] />
+      </#list>
+    </#if>
 
   </#list>
+
 </#if>

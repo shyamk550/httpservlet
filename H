@@ -1,54 +1,34 @@
-<#-- =====================  RISK  ===================== -->
-<#if includeRiskTemplate?? && includeRiskTemplate>
+<#-- ===================== DISCLOSURES ===================== -->
+<#-- helpers: decode basic HTML entities and strip tags -->
+<#function _decode s>
+  <#assign t = (s!'')?string>
+  <#-- decode common entities -->
+  <#assign t = t?replace("&amp;","&")?replace("&lt;","<")?replace("&gt;",">")
+                 ?replace("&quot;","\"")?replace("&#39;","'")>
+  <#-- collapse internal whitespace -->
+  <#return t?replace(r"\s+"," ","r")>
+</#function>
 
-  <#-- Small helpers -->
-  <#function dec s>
-    <#-- decode common HTML entity so S&amp;P -> S&P -->
-    <#return (s!'')?string?replace("&amp;","&")>
-  </#function>
+<#function _stripTags s>
+  <#-- remove simple HTML tags if any slipped in -->
+  <#return (s!'')?replace(r"<[^>]+>","","r")>
+</#function>
 
-  <#function suf period>
-    <#-- Convert "3-Year"/"5-Year"/"10-Year" to "3Yr"/"5Yr"/"10Yr" for key suffixes -->
-    <#if period == "3-Year"><#return "3Yr">
-    <#elseif period == "5-Year"><#return "5Yr">
-    <#else><#return "10Yr">
-    </#if>
-  </#function>
+<#-- Only render if we actually have disclosures -->
+<#if sectionList?? && sectionList?size gt 0 && sectionMap??>
 
-  <#-- Pull the account metrics (first/only entry) and all benchmarks -->
-  <#assign acc = (riskAccountMetrics![])?first!{}/>
-  <#assign benches = riskBenchmarkMetrics![]/>
+  <@printRow values=["Disclosures"] />
 
-  <#-- Loop periods like the PDF/CSV mockup -->
-  <#list ["3-Year","5-Year","10-Year"] as period>
-    <#assign s = suf(period)>
+  <#list sectionList as section>
+    <@printRow values=[ _decode(section) ] />
 
-    <@printRow values=["Section","Sub-Section","Account",
-                       "Standard Deviation","Sharpe Ratio","Alpha","Beta"] />
-
-    <@printRow values=["Risk", period, "Accounts (1)"] />
-
-    <@printRow values=[
-      "Risk", period, acc.accountNumber!'',
-      acc["standardDeviation" + s]!'',
-      acc["sharpeRatio"       + s]!'',
-      acc["alpha"             + s]!'',
-      acc["beta"              + s]!''
-    ] />
-
-    <@printRow values=["Risk", period, "Benchmarks (" + (benches?size)!0 + ")"] />
-
-    <#list benches as bm>
-      <#-- benchmark display name can live under different keys -->
-      <#assign bmName = dec(bm.benchmarkName!bm.accountNumber!bm.name!"")>
-      <@printRow values=[
-        "Risk", period, bmName,
-        bm["standardDeviation" + s]!'',
-        bm["sharpeRatio"       + s]!'',
-        bm["alpha"             + s]!'',
-        bm["beta"              + s]!''
-      ] />
+    <#list sectionMap[section]![] as contentText>
+      <#-- decode entities and strip tags, then print as its own row -->
+      <#assign line = _stripTags(_decode(contentText))>
+      <#if line?has_content>
+        <@printRow values=[ line ] />
+      </#if>
     </#list>
-
   </#list>
+
 </#if>

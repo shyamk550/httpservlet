@@ -1,34 +1,48 @@
-<#-- ===================== DISCLOSURES ===================== -->
-<#-- helpers: decode basic HTML entities and strip tags -->
-<#function _decode s>
-  <#assign t = (s!'')?string>
-  <#-- decode common entities -->
-  <#assign t = t?replace("&amp;","&")?replace("&lt;","<")?replace("&gt;",">")
-                 ?replace("&quot;","\"")?replace("&#39;","'")>
-  <#-- collapse internal whitespace -->
-  <#return t?replace(r"\s+"," ","r")>
-</#function>
+<#-- ===================== ALLOCATION ===================== -->
 
-<#function _stripTags s>
-  <#-- remove simple HTML tags if any slipped in -->
-  <#return (s!'')?replace(r"<[^>]+>","","r")>
-</#function>
+<#-- Common header printer for allocation subsections -->
+<#macro allocHeader subLabel>
+  <@printRow values=[
+    "Section","Sub-Section","Account","Securities","Allocation (%)"
+  ]/>
+</#macro>
 
-<#-- Only render if we actually have disclosures -->
-<#if sectionList?? && sectionList?size gt 0 && sectionMap??>
-
-  <@printRow values=["Disclosures"] />
-
-  <#list sectionList as section>
-    <@printRow values=[ _decode(section) ] />
-
-    <#list sectionMap[section]![] as contentText>
-      <#-- decode entities and strip tags, then print as its own row -->
-      <#assign line = _stripTags(_decode(contentText))>
-      <#if line?has_content>
-        <@printRow values=[ line ] />
-      </#if>
+<#-- Helper to print one allocation list (if present) -->
+<#macro allocBlock subLabel rows>
+  <#if rows?? && rows?has_content>
+    ${ row(["Allocation"]) }<#t>
+    <@allocHeader subLabel=subLabel/>
+    <#list rows as r>
+      <@printRow values=[
+        "Allocation",
+        subLabel,
+        accountNumber!'',
+        (r.securities!'' )?string?replace("&amp;","&"),
+        (r.endingAllocationValue!'')?string
+      ]/>
     </#list>
-  </#list>
+  </#if>
+</#macro>
 
+<#-- Asset Class (what you already add as allocationAssetClassData) -->
+<#if includeAllocationAssetClassTemplate?? && includeAllocationAssetClassTemplate>
+  <@allocBlock subLabel="Asset Class" rows=allocationAssetClassData![]/>
+</#if>
+
+<#-- Style (only if you later add it to the context as allocationStyleData) -->
+<@allocBlock subLabel="Style"  rows=allocationStyleData![]/>
+
+<#-- Sector (only if present) -->
+<@allocBlock subLabel="Sector" rows=allocationSectorData![]/>
+
+<#-- Region (only if present) -->
+<@allocBlock subLabel="Region" rows=allocationRegionData![]/>
+
+<#-- Optional summary line for Asset Class -->
+<#if allocationAssetClassEndingPercent?? || allocationAssetClassEndingValue??>
+  <@printRow values=[
+    "Allocation","Asset Class Summary",accountNumber!'',
+    allocationAssetClassEndingPercent!?string,  /* e.g., "100.3773" */
+    allocationAssetClassEndingValue!?string      /* e.g., fair value */
+  ]/>
 </#if>

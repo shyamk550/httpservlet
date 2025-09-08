@@ -1,8 +1,31 @@
-<#-- ================== HISTORICAL RETURNS ================== -->
+<#ftl strip_whitespace=true>
+<#-- Historical Returns CSV (single-column, pipe-delimited, no extra blank lines) -->
+
+<#-- helpers --------------------------------------------------------------->
+<#function _cell v>
+  <#local s = (v!"")?string>
+  <#if !s?has_content><#return "--"></#if>
+  <#return s>
+</#function>
+
+<#function _joinPipe values>
+  <#local parts=[]>
+  <#list values as x>
+    <#local parts = parts + [ _cell(x) ]>
+  </#list>
+  <#return parts?join("|")>
+</#function>
+
+<#-- Return one fully-formed CSV row (quoted) including CRLF -->
+<#function makeRow values>
+  <#local line = _joinPipe(values)>
+  <#return '"' + line?replace('"','""') + '"' + "\r\n">
+</#function>
+<#-- end helpers ----------------------------------------------------------->
 
 <#list historicalReturnsData![] as br>
 
-  <#-- Work out the sub-label -->
+  <#-- Subsection label -->
   <#assign subLabel = "Monthly">
   <#if br.periodType?? && br.periodType?has_content>
     <#assign subLabel = br.periodType>
@@ -17,23 +40,26 @@
 
   <#if historicalColumns?? && historicalColumns?size gt 1>
     <#list historicalColumns[1..] as c>
-      <#assign header = header + [ _decode(c) ]>
+      <#assign header = header + [ (_decode?has_api)?then(_decode(c), c) ]>
     </#list>
   </#if>
 
   <#assign header = header + ["Net of Fees","Gross of Fees"]>
 
-  <#-- Add all benchmark names -->
+  <#-- Append ALL benchmark names (string or object with bName) -->
   <#list benchmarkNames![] as bn>
-    <#assign bLabel = (bn?is_hash && bn.bName??) ? bn.bName : (bn!"")>
-    <#assign header = header + [ bLabel ]>
+    <#if bn?is_hash && bn.bName??>
+      <#assign bLabel = bn.bName>
+    <#else>
+      <#assign bLabel = bn>
+    </#if>
+    <#assign header = header + [ bLabel!"" ]>
   </#list>
 
-  <@printRow values=header />
+  ${ makeRow(header) }<#t>
 
   <#-- Data rows -->
   <#list br.rowData![] as row>
-
     <#assign vals = [
       "Historical Returns",
       subLabel,
@@ -41,10 +67,10 @@
       row.effectiveDate!''
     ]>
 
-    <#-- Add time columns in same order as header -->
+    <#-- Add time columns in the same order as header -->
     <#if historicalColumns?? && historicalColumns?size gt 1>
       <#list historicalColumns[1..] as c>
-        <#-- map label -> key (adjust if your data uses other names) -->
+        <#-- simple label->key mapping; adjust if your keys differ -->
         <#assign key = c?lower_case?replace(" ","")>
         <#assign vals = vals + [ row[key]!'' ]>
       </#list>
@@ -52,7 +78,7 @@
 
     <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
 
-    <#-- Benchmarks: prefer list, else fallback -->
+    <#-- Benchmarks: prefer list on the row; else fallback to benchmark0..N -->
     <#if row.benchmarks??>
       <#list row.benchmarks as b>
         <#assign vals = vals + [ b!'' ]>
@@ -63,12 +89,9 @@
       </#list>
     </#if>
 
-    <@printRow values=vals />
-
+    ${ makeRow(vals) }<#t>
   </#list>
 
-  <@printRow values=[ historicalReturnsDisclosureText!"" ] />
+  ${ makeRow([ historicalReturnsDisclosureText!"" ]) }<#t>
 
 </#list>
-
-<#-- ================== END HISTORICAL RETURNS ================== -->

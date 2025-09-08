@@ -1,75 +1,69 @@
 <#-- ================== HISTORICAL RETURNS ================== -->
 
-<#-- Loop over each historical block (Monthly / Quarterly / Yearly) -->
 <#list historicalReturnsData![] as block>
 
-  <#-- Work out the sub label -->
+  <#-- Subsection label (prefer provided periodType) -->
   <#assign subLabel = (block.periodType?? && block.periodType?has_content)
-                      ? block.periodType : (block_index==0?string("Monthly",
-                                        block_index==1?string("Quarterly","Yearly")))>
+      ? block.periodType
+      : (block_index == 0 ? "Monthly"
+        : (block_index == 1 ? "Quarterly" : "Yearly"))>
 
-  <#-- Benchmark names list (may be empty) -->
-  <#assign bNames = benchmarkNames![]>
+  <#-- Build header -->
+  <#assign header = ["Section","Sub-Section","Account","Timeframe"]>
 
-  <#-- Header: Section + Sub-Section + Account + Timeframe + (your time columns) + Net/Gross + ALL benchmark names -->
-  <#local header = ["Section","Sub-Section","Account","Timeframe"]>
-
+  <#-- If you have additional time columns, append them -->
   <#if historicalColumns?? && historicalColumns?size gt 1>
-    <#-- keep whatever you had from index 1.. (decode if needed) -->
     <#list historicalColumns[1..] as c>
-      <#local header = header + [ _decode(c) ]>
+      <#assign header = header + [ _decode(c) ]>
     </#list>
   </#if>
 
-  <#local header = header + ["Net of Fees","Gross of Fees"]>
+  <#assign header = header + ["Net of Fees","Gross of Fees"]>
 
-  <#-- append every benchmark name -->
-  <#list bNames as bn>
-    <#-- bn might be a string or an object with bName; support both -->
-    <#local header = header + [ (bn?is_hash && bn.bName??) ? bn.bName : (bn!"") ]>
+  <#-- Append ALL benchmark names (string or object with bName) -->
+  <#list benchmarkNames![] as bn>
+    <#assign bLabel = (bn?is_hash && bn.bName??) ? bn.bName : (bn!"")>
+    <#assign header = header + [ bLabel ]>
   </#list>
 
   <@printRow values=header />
 
-  <#-- -------- Data rows -------- -->
+  <#-- Data rows -->
   <#list block.rowData![] as row>
 
-    <#-- begin with the fixed fields -->
-    <#local vals = [
+    <#assign vals = [
       "Historical Returns",
       subLabel,
       row.accountNumber!'',
       row.effectiveDate!''
     ]>
 
-    <#-- add your time columns if they’re part of the row (mirror the header order) -->
+    <#-- Add the time columns in the same order as header -->
     <#if historicalColumns?? && historicalColumns?size gt 1>
       <#list historicalColumns[1..] as c>
-        <#-- c is a label; the row key may match the label or a mapped key – adjust if you used a map before -->
-        <#local key = c?lower_case?replace(" ","")>
-        <#local vals = vals + [ row[key]!'' ]>
+        <#-- Map the label to the row key as appropriate for your data.
+             Adjust this mapping if your keys differ from label formatting. -->
+        <#assign key = c?lower_case?replace(" ","")>
+        <#assign vals = vals + [ row[key]!'' ]>
       </#list>
     </#if>
 
-    <#-- Net/Gross -->
-    <#local vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
+    <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
 
-    <#-- Append benchmark values dynamically.
-         Prefer row.benchmarks (list), else fall back to benchmark0, benchmark1, ... -->
+    <#-- Benchmarks: prefer row.benchmarks (list), else fallback benchmark0..N -->
     <#if row.benchmarks??>
       <#list row.benchmarks as b>
-        <#local vals = vals + [ b!'' ]>
+        <#assign vals = vals + [ b!'' ]>
       </#list>
     <#else>
-      <#-- fallback: collect any benchmarkN properties that exist -->
-      <#list 0..19 as i>  <#-- up to 20, adjust as needed -->
-        <#if (row["benchmark"+i])??>
-          <#local vals = vals + [ row["benchmark"+i]!'' ]>
-        </#if>
+      <#-- use as many as there are names -->
+      <#list 0..(benchmarkNames!?size - 1) as i>
+        <#assign vals = vals + [ row["benchmark" + i]!'' ]>
       </#list>
     </#if>
 
     <@printRow values=vals />
+
   </#list>
 
   <@printRow values=[ historicalReturnsDisclosureText!"" ] />

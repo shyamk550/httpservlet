@@ -1,48 +1,77 @@
-<#-- ===================== ALLOCATION ===================== -->
+<#-- ================== HISTORICAL RETURNS ================== -->
 
-<#-- Common header printer for allocation subsections -->
-<#macro allocHeader subLabel>
-  <@printRow values=[
-    "Section","Sub-Section","Account","Securities","Allocation (%)"
-  ]/>
-</#macro>
+<#-- Loop over each historical block (Monthly / Quarterly / Yearly) -->
+<#list historicalReturnsData![] as block>
 
-<#-- Helper to print one allocation list (if present) -->
-<#macro allocBlock subLabel rows>
-  <#if rows?? && rows?has_content>
-    ${ row(["Allocation"]) }<#t>
-    <@allocHeader subLabel=subLabel/>
-    <#list rows as r>
-      <@printRow values=[
-        "Allocation",
-        subLabel,
-        accountNumber!'',
-        (r.securities!'' )?string?replace("&amp;","&"),
-        (r.endingAllocationValue!'')?string
-      ]/>
+  <#-- Work out the sub label -->
+  <#assign subLabel = (block.periodType?? && block.periodType?has_content)
+                      ? block.periodType : (block_index==0?string("Monthly",
+                                        block_index==1?string("Quarterly","Yearly")))>
+
+  <#-- Benchmark names list (may be empty) -->
+  <#assign bNames = benchmarkNames![]>
+
+  <#-- Header: Section + Sub-Section + Account + Timeframe + (your time columns) + Net/Gross + ALL benchmark names -->
+  <#local header = ["Section","Sub-Section","Account","Timeframe"]>
+
+  <#if historicalColumns?? && historicalColumns?size gt 1>
+    <#-- keep whatever you had from index 1.. (decode if needed) -->
+    <#list historicalColumns[1..] as c>
+      <#local header = header + [ _decode(c) ]>
     </#list>
   </#if>
-</#macro>
 
-<#-- Asset Class (what you already add as allocationAssetClassData) -->
-<#if includeAllocationAssetClassTemplate?? && includeAllocationAssetClassTemplate>
-  <@allocBlock subLabel="Asset Class" rows=allocationAssetClassData![]/>
-</#if>
+  <#local header = header + ["Net of Fees","Gross of Fees"]>
 
-<#-- Style (only if you later add it to the context as allocationStyleData) -->
-<@allocBlock subLabel="Style"  rows=allocationStyleData![]/>
+  <#-- append every benchmark name -->
+  <#list bNames as bn>
+    <#-- bn might be a string or an object with bName; support both -->
+    <#local header = header + [ (bn?is_hash && bn.bName??) ? bn.bName : (bn!"") ]>
+  </#list>
 
-<#-- Sector (only if present) -->
-<@allocBlock subLabel="Sector" rows=allocationSectorData![]/>
+  <@printRow values=header />
 
-<#-- Region (only if present) -->
-<@allocBlock subLabel="Region" rows=allocationRegionData![]/>
+  <#-- -------- Data rows -------- -->
+  <#list block.rowData![] as row>
 
-<#-- Optional summary line for Asset Class -->
-<#if allocationAssetClassEndingPercent?? || allocationAssetClassEndingValue??>
-  <@printRow values=[
-    "Allocation","Asset Class Summary",accountNumber!'',
-    allocationAssetClassEndingPercent!?string,  /* e.g., "100.3773" */
-    allocationAssetClassEndingValue!?string      /* e.g., fair value */
-  ]/>
-</#if>
+    <#-- begin with the fixed fields -->
+    <#local vals = [
+      "Historical Returns",
+      subLabel,
+      row.accountNumber!'',
+      row.effectiveDate!''
+    ]>
+
+    <#-- add your time columns if they’re part of the row (mirror the header order) -->
+    <#if historicalColumns?? && historicalColumns?size gt 1>
+      <#list historicalColumns[1..] as c>
+        <#-- c is a label; the row key may match the label or a mapped key – adjust if you used a map before -->
+        <#local key = c?lower_case?replace(" ","")>
+        <#local vals = vals + [ row[key]!'' ]>
+      </#list>
+    </#if>
+
+    <#-- Net/Gross -->
+    <#local vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
+
+    <#-- Append benchmark values dynamically.
+         Prefer row.benchmarks (list), else fall back to benchmark0, benchmark1, ... -->
+    <#if row.benchmarks??>
+      <#list row.benchmarks as b>
+        <#local vals = vals + [ b!'' ]>
+      </#list>
+    <#else>
+      <#-- fallback: collect any benchmarkN properties that exist -->
+      <#list 0..19 as i>  <#-- up to 20, adjust as needed -->
+        <#if (row["benchmark"+i])??>
+          <#local vals = vals + [ row["benchmark"+i]!'' ]>
+        </#if>
+      </#list>
+    </#if>
+
+    <@printRow values=vals />
+  </#list>
+
+  <@printRow values=[ historicalReturnsDisclosureText!"" ] />
+
+</#list>

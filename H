@@ -1,17 +1,20 @@
 <#-- ================== HISTORICAL RETURNS ================== -->
 
-<#list historicalReturnsData![] as block>
+<#list historicalReturnsData![] as br>
 
-  <#-- Subsection label (prefer provided periodType) -->
-  <#assign subLabel = (block.periodType?? && block.periodType?has_content)
-      ? block.periodType
-      : (block_index == 0 ? "Monthly"
-        : (block_index == 1 ? "Quarterly" : "Yearly"))>
+  <#-- Work out the sub-label -->
+  <#assign subLabel = "Monthly">
+  <#if br.periodType?? && br.periodType?has_content>
+    <#assign subLabel = br.periodType>
+  <#elseif br_index == 1>
+    <#assign subLabel = "Quarterly">
+  <#elseif br_index == 2>
+    <#assign subLabel = "Yearly">
+  </#if>
 
   <#-- Build header -->
   <#assign header = ["Section","Sub-Section","Account","Timeframe"]>
 
-  <#-- If you have additional time columns, append them -->
   <#if historicalColumns?? && historicalColumns?size gt 1>
     <#list historicalColumns[1..] as c>
       <#assign header = header + [ _decode(c) ]>
@@ -20,7 +23,7 @@
 
   <#assign header = header + ["Net of Fees","Gross of Fees"]>
 
-  <#-- Append ALL benchmark names (string or object with bName) -->
+  <#-- Add all benchmark names -->
   <#list benchmarkNames![] as bn>
     <#assign bLabel = (bn?is_hash && bn.bName??) ? bn.bName : (bn!"")>
     <#assign header = header + [ bLabel ]>
@@ -29,7 +32,7 @@
   <@printRow values=header />
 
   <#-- Data rows -->
-  <#list block.rowData![] as row>
+  <#list br.rowData![] as row>
 
     <#assign vals = [
       "Historical Returns",
@@ -38,11 +41,10 @@
       row.effectiveDate!''
     ]>
 
-    <#-- Add the time columns in the same order as header -->
+    <#-- Add time columns in same order as header -->
     <#if historicalColumns?? && historicalColumns?size gt 1>
       <#list historicalColumns[1..] as c>
-        <#-- Map the label to the row key as appropriate for your data.
-             Adjust this mapping if your keys differ from label formatting. -->
+        <#-- map label -> key (adjust if your data uses other names) -->
         <#assign key = c?lower_case?replace(" ","")>
         <#assign vals = vals + [ row[key]!'' ]>
       </#list>
@@ -50,13 +52,12 @@
 
     <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
 
-    <#-- Benchmarks: prefer row.benchmarks (list), else fallback benchmark0..N -->
+    <#-- Benchmarks: prefer list, else fallback -->
     <#if row.benchmarks??>
       <#list row.benchmarks as b>
         <#assign vals = vals + [ b!'' ]>
       </#list>
     <#else>
-      <#-- use as many as there are names -->
       <#list 0..(benchmarkNames!?size - 1) as i>
         <#assign vals = vals + [ row["benchmark" + i]!'' ]>
       </#list>
@@ -69,3 +70,5 @@
   <@printRow values=[ historicalReturnsDisclosureText!"" ] />
 
 </#list>
+
+<#-- ================== END HISTORICAL RETURNS ================== -->

@@ -1,97 +1,13 @@
-<#ftl strip_whitespace=true>
-<#-- Historical Returns CSV (single-column, pipe-delimited, no extra blank lines) -->
-
-<#-- helpers --------------------------------------------------------------->
-<#function _cell v>
-  <#local s = (v!"")?string>
-  <#if !s?has_content><#return "--"></#if>
-  <#return s>
-</#function>
-
-<#function _joinPipe values>
-  <#local parts=[]>
-  <#list values as x>
-    <#local parts = parts + [ _cell(x) ]>
-  </#list>
-  <#return parts?join("|")>
-</#function>
-
-<#-- Return one fully-formed CSV row (quoted) including CRLF -->
-<#function makeRow values>
-  <#local line = _joinPipe(values)>
-  <#return '"' + line?replace('"','""') + '"' + "\r\n">
-</#function>
-<#-- end helpers ----------------------------------------------------------->
-
-<#list historicalReturnsData![] as br>
-
-  <#-- Subsection label -->
-  <#assign subLabel = "Monthly">
-  <#if br.periodType?? && br.periodType?has_content>
-    <#assign subLabel = br.periodType>
-  <#elseif br_index == 1>
-    <#assign subLabel = "Quarterly">
-  <#elseif br_index == 2>
-    <#assign subLabel = "Yearly">
+<#-- Parses a date string and returns MM/dd/yyyy; returns "" if blank.
+     Defaults to input format dd-MMM-yyyy (e.g., 28-Feb-2022). -->
+<#function fmtDate s inFmt="dd-MMM-yyyy" outFmt="MM/dd/yyyy">
+  <#if !s?? || !s?has_content>
+    <#return "">
   </#if>
-
-  <#-- Build header -->
-  <#assign header = ["Section","Sub-Section","Account","Timeframe"]>
-
-  <#if historicalColumns?? && historicalColumns?size gt 1>
-    <#list historicalColumns[1..] as c>
-      <#assign header = header + [ (_decode?has_api)?then(_decode(c), c) ]>
-    </#list>
-  </#if>
-
-  <#assign header = header + ["Net of Fees","Gross of Fees"]>
-
-  <#-- Append ALL benchmark names (string or object with bName) -->
-  <#list benchmarkNames![] as bn>
-    <#if bn?is_hash && bn.bName??>
-      <#assign bLabel = bn.bName>
-    <#else>
-      <#assign bLabel = bn>
-    </#if>
-    <#assign header = header + [ bLabel!"" ]>
-  </#list>
-
-  ${ makeRow(header) }<#t>
-
-  <#-- Data rows -->
-  <#list br.rowData![] as row>
-    <#assign vals = [
-      "Historical Returns",
-      subLabel,
-      row.accountNumber!'',
-      row.effectiveDate!''
-    ]>
-
-    <#-- Add time columns in the same order as header -->
-    <#if historicalColumns?? && historicalColumns?size gt 1>
-      <#list historicalColumns[1..] as c>
-        <#-- simple label->key mapping; adjust if your keys differ -->
-        <#assign key = c?lower_case?replace(" ","")>
-        <#assign vals = vals + [ row[key]!'' ]>
-      </#list>
-    </#if>
-
-    <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
-
-    <#-- Benchmarks: prefer list on the row; else fallback to benchmark0..N -->
-    <#if row.benchmarks??>
-      <#list row.benchmarks as b>
-        <#assign vals = vals + [ b!'' ]>
-      </#list>
-    <#else>
-      <#list 0..(benchmarkNames!?size - 1) as i>
-        <#assign vals = vals + [ row["benchmark" + i]!'' ]>
-      </#list>
-    </#if>
-
-    ${ makeRow(vals) }<#t>
-  </#list>
-
-  ${ makeRow([ historicalReturnsDisclosureText!"" ]) }<#t>
-
-</#list>
+  <#attempt>
+    <#return s?date(inFmt)?string(outFmt)>
+  <#recover>
+    <#-- If parsing ever fails, just return the original string -->
+    <#return s>
+  </#recover>
+</#function>

@@ -1,59 +1,67 @@
 <#ftl strip_whitespace=true>
 <#compress>
 <#
-  /*
-    Inputs expected:
-      - sectionList : [ "Important Performance Measurement and Risk Information", "For Investment Professional Use Only", ... , "Benchmark Descriptions" ]
-      - sectionMap  : { "Important Performance Measurement and Risk Information": [ html/text... ],
-                        ...
-                        "Benchmark Descriptions": [ htmlTableString ] }
+/*
+  Expected inputs in the data model:
+    - sectionList : [ "Important Performance Measurement and Risk Information", ..., "Benchmark Descriptions", ... ]
+    - sectionMap  : { <sectionName> : [ htmlOrText, ... ] }
 
-    Helpers expected (defined in export-csv.ftl):
-      _decode(s), _stripTags(s), printRow (macro), emptyRow() [optional]
-  */
+  Expected helpers already available (defined in your shared export helpers):
+    - _decode(s)      : decode HTML entities (&amp; -> & etc.)
+    - _stripTags(s)   : strip HTML tags
+    - printRow macro  : <@printRow values=[ ... ]/>  // writes one quoted CSV row + CRLF
+*/
 >
 
-<#-- =============== DISCLOSURES =============== -->
 <@printRow values=["Disclosures"]/><#t>
 
 <#if sectionList?? && sectionList?size gt 0 && sectionMap??>
   <#list sectionList as sectionName>
+
     <@printRow values=[ _decode(sectionName) ]/><#t>
 
-    <#-- ---------- Special case: Benchmark Descriptions ---------- -->
+    <#-- ================== Benchmark Descriptions (Title | Description) ================== -->
     <#if sectionName?lower_case == "benchmark descriptions" && sectionMap[sectionName]?? && sectionMap[sectionName]?size gt 0>
-      <#-- We expect an HTML table; convert cells/rows to "Title|Description" lines -->
       <#list sectionMap[sectionName] as _htmlBlock>
-        <#-- 1) Normalize HTML: <br>->space, </td>/<th>->'|', </tr>->'\n' -->
-        <#assign _normalized = (_htmlBlock!'')
-          ?replace("(?i)<br\\s*/?>", " ", "r")
-          ?replace("(?i)</t[dh]>", "|", "r")
-          ?replace("(?i)</tr>", "\n", "r")>
+        <#-- Split into TRs -->
+        <#assign _rows = (_htmlBlock!'')?split("(?i)</tr>")>
+        <#list _rows as _rowRaw>
+          <#assign _row = _rowRaw?trim>
+          <#if _row?has_content>
+            <#-- Split cells within the row (</td> or </th>) -->
+            <#assign _cellsRaw = _row?split("(?i)</t[dh]>")>
+            <#assign _cells = []>
+            <#list _cellsRaw as _c>
+              <#-- Clean each cell: decode entities, strip tags, normalize whitespace -->
+              <#assign _val = _stripTags(_decode(_c?trim))?replace("\\s+", " ", "r")?trim>
+              <#if _val?has_content>
+                <#assign _cells = _cells + [ _val ]>
+              </#if>
+            </#list>
 
-        <#-- 2) Decode & strip remaining tags -->
-        <#assign _flat = _stripTags(_decode(_normalized))>
-
-        <#-- 3) Emit each non-empty line as its own CSV row -->
-        <#list _flat?split("\n") as _line>
-          <#assign _l = _line?trim>
-          <#if _l?has_content>
-            <@printRow values=[ _l ]/><#t>
+            <#-- Enforce exactly 2 columns: Title | Description (join any extra cells into description) -->
+            <#if _cells?size gt 0>
+              <#assign _title = _cells[0]>
+              <#assign _desc  = (_cells?size > 1) ? then(_cells[1..]?join(" "), "")>
+              <@printRow values=[ _title + "|" + _desc ]/><#t>
+            </#if>
           </#if>
         </#list>
       </#list>
 
-    <#-- ---------- Default case: simple text/HTML blobs ---------- -->
+    <#-- ================== Default: plain text/HTML sections ================== -->
     <#elseif sectionMap[sectionName]?? && sectionMap[sectionName]?size gt 0>
       <#list sectionMap[sectionName] as contentText>
-        <#assign line = _stripTags(_decode(contentText!''))>
+        <#assign line = _stripTags(_decode(contentText!''))?replace("\\s+", " ", "r")?trim>
         <#if line?has_content>
           <@printRow values=[ line ]/><#t>
         </#if>
       </#list>
     </#if>
 
-    <#-- Optional spacer between sections; uncomment if desired -->
-    <#-- ${ emptyRow() } -->
+    <#-- (Optional spacer between disclosure sections)
+    ${ emptyRow() }
+    -->
   </#list>
 </#if>
 

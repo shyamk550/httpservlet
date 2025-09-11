@@ -1,13 +1,26 @@
-<#-- Parses a date string and returns MM/dd/yyyy; returns "" if blank.
-     Defaults to input format dd-MMM-yyyy (e.g., 28-Feb-2022). -->
-<#function fmtDate s inFmt="dd-MMM-yyyy" outFmt="MM/dd/yyyy">
-  <#if !s?? || !s?has_content>
-    <#return "">
-  </#if>
-  <#attempt>
-    <#return s?date(inFmt)?string(outFmt)>
-  <#recover>
-    <#-- If parsing ever fails, just return the original string -->
-    <#return s>
-  </#recover>
+<#-- Safe date formatter: returns MM/dd/yyyy; if unparseable, returns original text -->
+<#function fmtDate s outFmt="MM/dd/yyyy">
+  <#local _t = ((s!'')?string)?trim>
+  <#if _t == "" || _t == "--"><#return ""></#if>
+
+  <#-- try multiple common input patterns -->
+  <#local _inFmts = [
+    "dd-MMM-yyyy",  "d-MMM-yyyy",
+    "dd-MMM-yy",    "d-MMM-yy",
+    "MM/dd/yyyy",   "M/d/yyyy",
+    "yyyy-MM-dd",   "yyyy/MM/dd",
+    "MMM d, yyyy",  "MMMM d, yyyy"
+  ]>
+
+  <#list _inFmts as _f>
+    <#attempt>
+      <#return _t?date(_f)?string(outFmt)>
+    <#recover>
+    </#recover>
+  </#list>
+
+  <#-- diagnostic fallback so you SEE what's in the model -->
+  <#return _t>
 </#function>
+${ makeRow(["DEBUG inception raw="+(metric.inceptionDate!""), "fmt="+fmtDate(metric.inceptionDate)]) }<#t>
+

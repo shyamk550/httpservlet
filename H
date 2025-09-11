@@ -1,68 +1,43 @@
-<#ftl strip_whitespace=true>
-<#compress>
-<#
-/*
-  Expected inputs in the data model:
-    - sectionList : [ "Important Performance Measurement and Risk Information", ..., "Benchmark Descriptions", ... ]
-    - sectionMap  : { <sectionName> : [ htmlOrText, ... ] }
+<#-- Build header -->
+<#assign header = [
+  "Section","Sub-Section","Account","Timeframe",
+  "RATE OF RETURN (NET OF FEES)","RATE OF RETURN (GROSS OF FEES)"
+]>
 
-  Expected helpers already available (defined in your shared export helpers):
-    - _decode(s)      : decode HTML entities (&amp; -> & etc.)
-    - _stripTags(s)   : strip HTML tags
-    - printRow macro  : <@printRow values=[ ... ]/>  // writes one quoted CSV row + CRLF
-*/
->
+<#-- Append ALL benchmark names (string or object with bName) -->
+<#list benchmarkNames![] as bn>
+  <#assign blabel =
+    (bn?is_hash && bn.bName??) ? _decode(bn.bName) : _decode(bn) >
+  <#assign header = header + [ blabel ]>
+</#list>
 
-<@printRow values=["Disclosures"]/><#t>
+${ makeRow(header) }<#t>
 
-<#if sectionList?? && sectionList?size gt 0 && sectionMap??>
-  <#list sectionList as sectionName>
+<#-- ================= Data rows ================= -->
+<#list br.rowData![] as row>
+  <#-- Base columns -->
+  <#assign vals = [
+    "Historical Returns",
+    subLabel,
+    row.accountNumber!'',
+    row.effectiveDate!''
+  ]>
 
-    <@printRow values=[ _decode(sectionName) ]/><#t>
+  <#-- Net/Gross of Fees (always right after Timeframe) -->
+  <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
 
-    <#-- ================== Benchmark Descriptions (Title | Description) ================== -->
-    <#if sectionName?lower_case == "benchmark descriptions" && sectionMap[sectionName]?? && sectionMap[sectionName]?size gt 0>
-      <#list sectionMap[sectionName] as _htmlBlock>
-        <#-- Split into TRs -->
-        <#assign _rows = (_htmlBlock!'')?split("(?i)</tr>")>
-        <#list _rows as _rowRaw>
-          <#assign _row = _rowRaw?trim>
-          <#if _row?has_content>
-            <#-- Split cells within the row (</td> or </th>) -->
-            <#assign _cellsRaw = _row?split("(?i)</t[dh]>")>
-            <#assign _cells = []>
-            <#list _cellsRaw as _c>
-              <#-- Clean each cell: decode entities, strip tags, normalize whitespace -->
-              <#assign _val = _stripTags(_decode(_c?trim))?replace("\\s+", " ", "r")?trim>
-              <#if _val?has_content>
-                <#assign _cells = _cells + [ _val ]>
-              </#if>
-            </#list>
+  <#-- Benchmarks aligned with header order -->
+  <#if row.benchmarks??>
+    <#-- row.benchmarks is an array in the same order as benchmarkNames -->
+    <#list row.benchmarks as b>
+      <#assign vals = vals + [ b!'' ]>
+    </#list>
+  <#else>
+    <#-- fallback: fields benchmark0, benchmark1, ... -->
+    <#list 0..(benchmarkNames!?size - 1) as i>
+      <#assign vals = vals + [ row["benchmark" + i]!'' ]>
+    </#list>
+  </#if>
 
-            <#-- Enforce exactly 2 columns: Title | Description (join any extra cells into description) -->
-            <#if _cells?size gt 0>
-              <#assign _title = _cells[0]>
-              <#assign _desc  = (_cells?size > 1) ? then(_cells[1..]?join(" "), "")>
-              <@printRow values=[ _title + "|" + _desc ]/><#t>
-            </#if>
-          </#if>
-        </#list>
-      </#list>
-
-    <#-- ================== Default: plain text/HTML sections ================== -->
-    <#elseif sectionMap[sectionName]?? && sectionMap[sectionName]?size gt 0>
-      <#list sectionMap[sectionName] as contentText>
-        <#assign line = _stripTags(_decode(contentText!''))?replace("\\s+", " ", "r")?trim>
-        <#if line?has_content>
-          <@printRow values=[ line ]/><#t>
-        </#if>
-      </#list>
-    </#if>
-
-    <#-- (Optional spacer between disclosure sections)
-    ${ emptyRow() }
-    -->
-  </#list>
-</#if>
-
-</#compress>
+  ${ makeRow(vals) }<#t>
+</#list>

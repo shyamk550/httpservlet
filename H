@@ -4,23 +4,20 @@
 
 <#-- -------------------- Helpers -------------------- -->
 
-<#-- Decode a few common HTML entities in labels -->
 <#function _decode s>
   <#if !s?has_content><#return s /></#if>
   <#local t = s?string>
   <#local t = t?replace("&amp;","&")?replace("&lt;","<")?replace("&gt;",">")
-                 ?replace("&quot;","\"")?replace("&#39;","'")>
+               ?replace("&quot;","\"")?replace("&#39;","'")>
   <#return t>
 </#function>
 
-<#-- Cell rendering: default to "--" when value is blank/null -->
 <#function cell v>
   <#local s = (v!'')?string>
   <#if !s?has_content><#return "--" /></#if>
   <#return s>
 </#function>
 
-<#-- Join an array with pipes -->
 <#function joinPipe values>
   <#local out = "">
   <#list values as v>
@@ -33,8 +30,6 @@
   <#return out>
 </#function>
 
-<#-- Emit one CSV "row" (as single pipe-delimited string + CRLF).
-     If values is empty or null, emits just a blank line. -->
 <#function makeRow values>
   <#if !values?? || values?size == 0>
     <#return "\r\n">
@@ -42,7 +37,6 @@
   <#return joinPipe(values) + "\r\n">
 </#function>
 
-<#-- Map block index to fallback sub label when periodType is missing -->
 <#function fallbackSubLabel idx>
   <#if idx == 0>
     <#return "Monthly">
@@ -53,33 +47,41 @@
   </#if>
 </#function>
 
-<#-- --------------- Main: Historical Returns --------------- -->
+<#-- -------------------- Main -------------------- -->
 
 <#list historicalReturnsData![] as br>
 
-  <#-- Sub-Section label (Monthly / Quarterly / Yearly) -->
+  <#-- Sub-Section label -->
   <#if br.periodType?? && br.periodType?has_content>
     <#assign subLabel = br.periodType>
   <#else>
     <#assign subLabel = fallbackSubLabel(br_index)>
   </#if>
 
-  <#-- Build header -->
+  <#-- Base header -->
   <#assign header = [
-      "Section","Sub-Section","Account","Timeframe",
-      "RATE OF RETURN (NET OF FEES)","RATE OF RETURN (GROSS OF FEES)"
+    "Section","Sub-Section","Account","Timeframe",
+    "RATE OF RETURN (NET OF FEES)","RATE OF RETURN (GROSS OF FEES)"
   ]>
 
-  <#-- Append ALL benchmark names (string or object with bName) -->
-  <#list benchmarkNames![] as bn>
-    <#if bn?is_hash && bn.bName??>
-      <#assign label = _decode(bn.bName)>
-    <#else>
-      <#assign label = _decode(bn)>
-    </#if>
-    <#assign header = header + [ label ]>
-  </#list>
+  <#-- Determine benchmark labels -->
+  <#assign benchLabels = []>
+  <#if benchmarkNames?? && benchmarkNames?size gt 0>
+    <#list benchmarkNames as bn>
+      <#if bn?is_hash && bn.bName??>
+        <#assign benchLabels = benchLabels + [ _decode(bn.bName) ]>
+      <#else>
+        <#assign benchLabels = benchLabels + [ _decode(bn) ]>
+      </#if>
+    </#list>
+  <#elseif historicalColumns?? && historicalColumns?size gt 3>
+    <#-- historicalColumns usually like: ACCOUNT #, NET, GROSS, procedure, S&P 500 Value Index, S&P 500 Index -->
+    <#list historicalColumns[3..] as c>
+      <#assign benchLabels = benchLabels + [ _decode(c) ]>
+    </#list>
+  </#if>
 
+  <#assign header = header + benchLabels>
   ${makeRow(header)}
 
   <#-- Data rows -->
@@ -93,18 +95,25 @@
       (row.grossOfFees!'')
     ]>
 
-    <#-- Append all benchmarkN values corresponding to benchmarkNames -->
-    <#if benchmarkNames??>
-      <#list 0..(benchmarkNames?size - 1) as i>
+    <#-- Append benchmark values:
+         * If we know the labels, emit the same count.
+         * Otherwise, probe benchmark0..benchmark10 and include those that exist. -->
+    <#if benchLabels?size gt 0>
+      <#list 0..(benchLabels?size - 1) as i>
         <#assign vals = vals + [ row['benchmark' + i]!'' ]>
+      </#list>
+    <#else>
+      <#list 0..10 as i>
+        <#if row['benchmark' + i]??>
+          <#assign vals = vals + [ row['benchmark' + i]!'' ]>
+        </#if>
       </#list>
     </#if>
 
     ${makeRow(vals)}
   </#list>
 
-  <#-- One blank line between blocks -->
-  ${makeRow([])}
+  ${makeRow([])} <#-- blank line between blocks -->
 
 </#list>
 

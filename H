@@ -34,7 +34,7 @@
 </#function>
 
 <#-- Emit one CSV "row" (as single pipe-delimited string + CRLF).
-     If values is empty, emits just a blank line. -->
+     If values is empty or null, emits just a blank line. -->
 <#function makeRow values>
   <#if !values?? || values?size == 0>
     <#return "\r\n">
@@ -58,10 +58,11 @@
 <#list historicalReturnsData![] as br>
 
   <#-- Sub-Section label (Monthly / Quarterly / Yearly) -->
-  <#assign subLabel =
-      (br.periodType?? && br.periodType?has_content)
-      ? br.periodType
-      : fallbackSubLabel(br_index) >
+  <#if br.periodType?? && br.periodType?has_content>
+    <#assign subLabel = br.periodType>
+  <#else>
+    <#assign subLabel = fallbackSubLabel(br_index)>
+  </#if>
 
   <#-- Build header -->
   <#assign header = [
@@ -71,8 +72,11 @@
 
   <#-- Append ALL benchmark names (string or object with bName) -->
   <#list benchmarkNames![] as bn>
-    <#assign label =
-      (bn?is_hash && bn.bName??) ? _decode(bn.bName) : _decode(bn) >
+    <#if bn?is_hash && bn.bName??>
+      <#assign label = _decode(bn.bName)>
+    <#else>
+      <#assign label = _decode(bn)>
+    </#if>
     <#assign header = header + [ label ]>
   </#list>
 
@@ -83,16 +87,18 @@
     <#assign vals = [
       "Historical Returns",
       subLabel,
-      row.accountNumber!'',
-      row.effectiveDate!'',
-      row.netOfFees!'',
-      row.grossOfFees!''
+      (row.accountNumber!''),
+      (row.effectiveDate!''),
+      (row.netOfFees!''),
+      (row.grossOfFees!'')
     ]>
 
     <#-- Append all benchmarkN values corresponding to benchmarkNames -->
-    <#list 0..(benchmarkNames!?size - 1) as i>
-      <#assign vals = vals + [ row['benchmark' + i]!'' ]>
-    </#list>
+    <#if benchmarkNames??>
+      <#list 0..(benchmarkNames?size - 1) as i>
+        <#assign vals = vals + [ row['benchmark' + i]!'' ]>
+      </#list>
+    </#if>
 
     ${makeRow(vals)}
   </#list>

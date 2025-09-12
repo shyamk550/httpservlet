@@ -1,43 +1,93 @@
-<#-- Build header -->
-<#assign header = [
-  "Section","Sub-Section","Account","Timeframe",
-  "RATE OF RETURN (NET OF FEES)","RATE OF RETURN (GROSS OF FEES)"
-]>
+<#ftl strip_whitespace=true>
+<#compress>
 
-<#-- Append ALL benchmark names (string or object with bName) -->
-<#list benchmarkNames![] as bn>
-  <#assign blabel =
-    (bn?is_hash && bn.bName??) ? _decode(bn.bName) : _decode(bn) >
-  <#assign header = header + [ blabel ]>
-</#list>
+<#-- ===========================================================
+     HISTORICAL RETURNS CSV
+     Single-column, pipe-delimited, no extra blank lines
+=========================================================== -->
 
-${ makeRow(header) }<#t>
+<#-- Helpers -->
+<#function _cell v>
+  <#local s = (v!'')?string>
+  <#if !s?has_content>
+    <#return "--">
+  </#if>
+  <#return s>
+</#function>
 
-<#-- ================= Data rows ================= -->
-<#list br.rowData![] as row>
-  <#-- Base columns -->
-  <#assign vals = [
-    "Historical Returns",
-    subLabel,
-    row.accountNumber!'',
-    row.effectiveDate!''
-  ]>
+<#function _joinPipe values>
+  <#local parts = []>
+  <#list values as x>
+    <#local parts = parts + [ _cell(x) ]>
+  </#list>
+  <#return parts?join("|")>
+</#function>
 
-  <#-- Net/Gross of Fees (always right after Timeframe) -->
-  <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
+<#function makeRow values>
+  <#local line = _joinPipe(values)>
+  <#return line + "\r\n">
+</#function>
 
-  <#-- Benchmarks aligned with header order -->
-  <#if row.benchmarks??>
-    <#-- row.benchmarks is an array in the same order as benchmarkNames -->
-    <#list row.benchmarks as b>
-      <#assign vals = vals + [ b!'' ]>
-    </#list>
-  <#else>
-    <#-- fallback: fields benchmark0, benchmark1, ... -->
-    <#list 0..(benchmarkNames!?size - 1) as i>
-      <#assign vals = vals + [ row["benchmark" + i]!'' ]>
-    </#list>
+<#-- ===========================================================
+     Render Historical Returns
+=========================================================== -->
+
+<#list historicalReturnsData![] as br>
+
+  <#-- Subsection label -->
+  <#assign subLabel = "Monthly">
+  <#if br.periodType?? && br.periodType?has_content>
+    <#assign subLabel = br.periodType>
+  <#elseif br_index == 1>
+    <#assign subLabel = "Quarterly">
+  <#elseif br_index == 2>
+    <#assign subLabel = "Yearly">
   </#if>
 
-  ${ makeRow(vals) }<#t>
+  <#-- Build header -->
+  <#assign header = [
+    "Section","Sub-Section","Account","Timeframe",
+    "RATE OF RETURN (NET OF FEES)","RATE OF RETURN (GROSS OF FEES)"
+  ]>
+
+  <#-- Append ALL benchmark names -->
+  <#list benchmarkNames![] as bn>
+    <#assign blabel =
+      (bn?is_hash && bn.bName??) ? _decode(bn.bName) : _decode(bn)>
+    <#assign header = header + [ blabel ]>
+  </#list>
+
+  ${ makeRow(header) }<#t>
+
+  <#-- ================= Data rows ================= -->
+  <#list br.rowData![] as row>
+
+    <#-- Base columns -->
+    <#assign vals = [
+      "Historical Returns",
+      subLabel,
+      row.accountNumber!'',
+      row.effectiveDate!''
+    ]>
+
+    <#-- Net/Gross of Fees -->
+    <#assign vals = vals + [ row.netOfFees!'', row.grossOfFees!'' ]>
+
+    <#-- Benchmarks aligned with header order -->
+    <#if row.benchmarks??>
+      <#list row.benchmarks as b>
+        <#assign vals = vals + [ b!'' ]>
+      </#list>
+    <#else>
+      <#list 0..(benchmarkNames!?size - 1) as i>
+        <#assign vals = vals + [ row["benchmark" + i]!'' ]>
+      </#list>
+    </#if>
+
+    ${ makeRow(vals) }<#t>
+
+  </#list>
+
 </#list>
+
+</#compress>
